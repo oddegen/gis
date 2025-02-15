@@ -5,3 +5,18 @@
 [x-cloak] {
     display: none;
 }
+
+.legend-enter-to,
+.legend-leave-from {
+    @apply opacity-100;
+}
+
+.legend-enter-active,
+.legend-leave-active {
+    @apply transition-opacity duration-300;
+}
+
+.legend-enter-from,
+.legend-leave-to {
+    opacity: 0;
+}

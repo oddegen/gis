@@ -19,6 +19,10 @@ Route::middleware([
     'verified',
 ])->group(function () {
     Route::get('/dashboard', function () {
-        return Inertia::render('Dashboard');
+        $geojson = file_get_contents(resource_path('/geojson/monuments.geojson'));
+
+        return Inertia::render('Dashboard', [
+            'geojson' => $geojson,
+        ]);
     })->name('dashboard');
 });
