@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\MonumentController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -18,11 +19,5 @@ Route::middleware([
     config('jetstream.auth_session'),
     'verified',
 ])->group(function () {
-    Route::get('/dashboard', function () {
-        $geojson = file_get_contents(resource_path('/geojson/monuments.geojson'));
-
-        return Inertia::render('Dashboard', [
-            'geojson' => $geojson,
-        ]);
-    })->name('dashboard');
+    Route::get('/dashboard', MonumentController::class)->name('dashboard');
 });
