@@ -1,5 +1,5 @@
 <script setup>
-import {onMounted, ref, useTemplateRef} from "vue";
+import {computed, onMounted, ref, useTemplateRef} from "vue";
 import Map from 'ol/Map.js'
 import TileLayer from "ol/layer/Tile.js";
 import OSM from "ol/source/OSM.js";
@@ -9,13 +9,16 @@ import VectorSource from "ol/source/Vector.js";
 import GeoJSON from "ol/format/GeoJSON.js";
 import {Circle, Fill, Stroke, Style, Text} from "ol/style.js";
 
-const props = defineProps(['monuments'])
-
-const map = ref();
+let map = ref();
 const mapRef = useTemplateRef('map');
 const legendOpened = ref(false);
+let monumentsLayer = null;
 
-const features = new GeoJSON().readFeatures(props.monuments)
+const monumentsFeatures = computed(() => {
+    if (!monumentsLayer) return [];
+
+    return monumentsLayer.getSource().getFeatures();
+})
 
 const styleFunction = (feature, resolution) => {
     return new Style({
@@ -57,6 +60,28 @@ const gotoFeature = (feature) => {
 }
 
 onMounted(() => {
+    const paramsObj = {
+        servive: 'WFS',
+        version: '2.0.0',
+        request: 'GetFeature',
+        typeName: 'gis:monuments',
+        outputFormat: 'application/json',
+        crs: 'EPSG:4326',
+        srsName: 'EPSG:4326',
+    }
+
+    const urlParams = new URLSearchParams(paramsObj)
+    const monumentsUrl = 'http://localhost:8080/geoserver/wfs?' +  urlParams.toString()
+
+    monumentsLayer = new VectorLayer({
+        source: new VectorSource({
+            format: new GeoJSON(),
+            url: monumentsUrl,
+        }),
+        style: styleFunction,
+        label: "Monuments",
+    })
+
     map.value = new Map({
         target: mapRef.value,
         layers: [
@@ -64,13 +89,7 @@ onMounted(() => {
                 source: new OSM(),
                 label: 'OSM',
             }),
-            new VectorLayer({
-                source: new VectorSource({
-                    features: features
-                }),
-                label: 'Monuments',
-                style: styleFunction
-            })
+            monumentsLayer,
         ],
         view: new View({
             projection: "EPSG:4326",
@@ -116,12 +135,10 @@ onMounted(() => {
                                     </label>
                                     <div v-if="layer.get('label') === 'Monuments' && layer.getVisible()">
                                         <div class="mt-2 ml-6 text-sm text-slate-600">
-                                            <template v-for="(feature, index) in layer.getSource().getFeatures()" :key="index">
-                                                <a href="#"
-                                                   :title="'Go to ' +  feature.get('name')"
-                                                   v-text="feature.get('name')"
-                                                   @click.prevent="gotoFeature(feature)"
-                                                   class="block hover:underline hover:text-slate-800 focus:outline-none focus:underline focus:text-slate-800 transition">
+                                            <template v-for="(feature, index) in monumentsFeatures" :key="index">
+                                                <a href="#" :title="'Go to ' +  feature.get('name')"
+                                                   v-text="feature.get('name')" @click.prevent="gotoFeature(feature)"
+                                                   class="block transition hover:text-slate-800 hover:underline focus:text-slate-800 focus:underline focus:outline-none">
                                                 </a>
                                             </template>
                                         </div>

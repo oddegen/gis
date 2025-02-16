@@ -57,6 +57,19 @@ services:
         networks:
             - backend
 
+    geoserver:
+      image: kartoza/geoserver
+      volumes:
+        - geoserver:/opt/geoserver/data_dir
+      environment:
+        - GEOSERVER_DATA_DIR=/opt/geoserver/data_dir
+        - GEOSERVER_ADMIN_USER=${GEOSERVER_ADMIN_USER}
+        - GEOSERVER_ADMIN_PASSWORD=${GEOSERVER_ADMIN_PASSWORD}
+        - HTTP_PROXY_NAME=${HTTP_PROXY_NAME}
+        - HTTP_PROXY_PORT=${HTTP_PROXY_PORT}
+      networks:
+        - backend
+
     workspace:
       build:
         context: .
@@ -104,5 +117,6 @@ networks:
 volumes:
     postgres:
     redis:
+    geoserver:
 
 
