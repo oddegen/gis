@@ -1,5 +1,5 @@
 <script setup>
-import {computed, onMounted, ref, useTemplateRef} from "vue";
+import {computed, onMounted, ref, useTemplateRef, watch} from "vue";
 import Map from 'ol/Map.js'
 import TileLayer from "ol/layer/Tile.js";
 import OSM from "ol/source/OSM.js";
@@ -8,17 +8,14 @@ import VectorLayer from 'ol/layer/Vector.js';
 import VectorSource from "ol/source/Vector.js";
 import GeoJSON from "ol/format/GeoJSON.js";
 import {Circle, Fill, Stroke, Style, Text} from "ol/style.js";
+import Overlay from "ol/Overlay.js";
 
-let map = ref();
+const map = ref();
 const mapRef = useTemplateRef('map');
 const legendOpened = ref(false);
-let monumentsLayer = null;
+const popupRef = useTemplateRef('popup');
+const popupContentRef = useTemplateRef('popupContent');
 
-const monumentsFeatures = computed(() => {
-    if (!monumentsLayer) return [];
-
-    return monumentsLayer.getSource().getFeatures();
-})
 
 const styleFunction = (feature, resolution) => {
     return new Style({
@@ -49,15 +46,52 @@ const styleFunction = (feature, resolution) => {
     })
 }
 
-const gotoFeature = (feature) => {
+const gotoFeature = (feature, cb) => {
     if (!map.value) return;
 
     map.value.getView().animate({
         center: feature.getGeometry().getCoordinates(),
-        zoom: 10,
-        duration: 2000,
-    });
+        zoom: 15,
+        duration: 500,
+    }, cb);
 }
+
+const closePopup = () => {
+    let overlay = map.value.getOverlayById('info');
+    overlay.setPosition(undefined);
+    popupContentRef.value.innerHTML = '';
+}
+
+watch(map, (n, o) => {
+    if (!map.value) return;
+
+    map.value.on('singleclick', (e) => {
+        if (e.dragging) return;
+
+        let overlay = map.value.getOverlayById('info');
+        overlay.setPosition(undefined);
+        popupContentRef.value.innerHTML = '';
+
+        map.value.forEachFeatureAtPixel(e.pixel, (feature, layer) => {
+            if (layer.get('label') === 'Monuments' && feature) {
+                let content = `<h4 class="text-gray-500 font-bold">${feature.get('name')}</h4>
+                               <img src="${feature.get('image')}" alt="${feature.get('name')}" class="mt-2 w-full max-h-[200px] rounded-md shadow-md object-contain overflow-clip">`;
+                popupContentRef.value.innerHTML = content;
+                gotoFeature(feature, () => {
+                    overlay.setPosition(
+                        feature.getGeometry().getCoordinates()
+                    );
+                });
+
+                return;
+            }
+        }, {
+            hitTolerance: 5,
+        })
+    })
+}, {
+    once: true,
+})
 
 onMounted(() => {
     const paramsObj = {
@@ -73,15 +107,6 @@ onMounted(() => {
     const urlParams = new URLSearchParams(paramsObj)
     const monumentsUrl = 'http://localhost:8080/geoserver/wfs?' +  urlParams.toString()
 
-    monumentsLayer = new VectorLayer({
-        source: new VectorSource({
-            format: new GeoJSON(),
-            url: monumentsUrl,
-        }),
-        style: styleFunction,
-        label: "Monuments",
-    })
-
     map.value = new Map({
         target: mapRef.value,
         layers: [
@@ -89,13 +114,27 @@ onMounted(() => {
                 source: new OSM(),
                 label: 'OSM',
             }),
-            monumentsLayer,
+            new VectorLayer({
+                source: new VectorSource({
+                    format: new GeoJSON(),
+                    url: monumentsUrl,
+                }),
+                style: styleFunction,
+                label: "Monuments",
+            }),
         ],
         view: new View({
             projection: "EPSG:4326",
             center: [0, 0],
             zoom: 2
-        })
+        }),
+        overlays: [
+            new Overlay({
+                id: 'info',
+                element: popupRef.value,
+                stopEvent: true,
+            }),
+        ],
     })
 })
 </script>
@@ -126,22 +165,19 @@ onMounted(() => {
                     <ul class="mt-2 space-y-1 rounded-md border border-slate-300 bg-white p-2">
                         <template v-if="map" v-for="(layer, index) in map.getAllLayers().reverse()" :key="index">
                             <li class="flex items-center px-2 py-1">
-                                <div>
-                                    <label class="flex items-center">
-                                        <input type="checkbox" :checked="layer.getVisible()"
-                                               @change="layer.setVisible(!layer.getVisible())"
-                                               class="rounded border-slate-300 text-[#3369A1] shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                                        <span class="ml-2 text-sm text-slate-600" v-text="layer.get('label')"></span>
+                                <div class="w-full">
+                                    <label for="legend-range-{{ index }}" class="flex items-center">
+                                        <span class="text-sm text-slate-600" v-text="layer.get('label')"></span>
                                     </label>
-                                    <div v-if="layer.get('label') === 'Monuments' && layer.getVisible()">
-                                        <div class="mt-2 ml-6 text-sm text-slate-600">
-                                            <template v-for="(feature, index) in monumentsFeatures" :key="index">
-                                                <a href="#" :title="'Go to ' +  feature.get('name')"
-                                                   v-text="feature.get('name')" @click.prevent="gotoFeature(feature)"
-                                                   class="block transition hover:text-slate-800 hover:underline focus:text-slate-800 focus:underline focus:outline-none">
-                                                </a>
-                                            </template>
-                                        </div>
+                                    <div class="mt-1 text-sm text-slate-600">
+                                        <input class="w-full accent-[#3369A1]"
+                                               type="range"
+                                               min="0"
+                                               max="1"
+                                               step="0.01"
+                                               id="legend-range-{{ index }}"
+                                               :value="layer.getOpacity()"
+                                               @change="(e) => layer.setOpacity(Number(e.target.value))">
                                     </div>
                                 </div>
                             </li>
@@ -150,5 +186,17 @@ onMounted(() => {
                 </div>
             </div>
         </Transition>
+        <div v-cloak ref="popup" class="ol-popup ol-control transition">
+            <div class="p-2 m-0.5 bg-white rounded-md">
+                <div class="flex justify-between">
+                    <h3 class="text-xs font-medium text-slate-400">Monument</h3>
+                    <a href="#"
+                       title="Close"
+                       @click.prevent="closePopup"
+                       class="-mt-1 font-black text-slate-400 transition hover:text-slate-600 focus:text-slate-600 focus:outline-none">&times;</a>
+                </div>
+                <div ref="popupContent" class="mt-2 overflow-y-auto min-h-[200px]"></div>
+            </div>
+        </div>
     </div>
 </template>
