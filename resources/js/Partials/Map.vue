@@ -9,6 +9,7 @@ import Overlay from "ol/Overlay.js";
 import TileWMS from 'ol/source/TileWMS.js';
 import Feature from "ol/Feature";
 import Point from 'ol/geom/Point.js';
+import Monuments from "@/Partials/Monuments.vue";
 
 const map = ref();
 const mapRef = useTemplateRef('map');
@@ -210,7 +211,7 @@ onMounted(() => {
                     </Transition>
                     <Transition name="tab">
                         <div v-show="activeTab === 'monuments'" class="mt-2 p-1 rounded-md border border-slate-300 bg-white">
-                            Monuments
+                            <Monuments />
                         </div>
                     </Transition>
                 </div>

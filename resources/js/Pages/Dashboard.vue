@@ -1,6 +1,6 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
-import Map from "@/Components/Map.vue";
+import Map from "@/Partials/Map.vue";
 </script>
 
 <template>
